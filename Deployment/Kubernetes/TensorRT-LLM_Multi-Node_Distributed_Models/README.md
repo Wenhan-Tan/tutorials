@@ -288,15 +288,29 @@ required for subsequent pod starts on the same node.
 
     > [triton_trt-llm.containerfile](containers/triton_trt-llm.containerfile)
 
-2.  Run the following command to create a custom Triton Inference Server w/ all necessary tools to generate TensorRT-LLM
-    plan and engine files. In this example we'll use the tag `24.04` to match the date portion of `24.04-trtllm-python-py3`
+2.  For 24.06 ONLY! In [triton_trt-llm.containerfile](containers/triton_trt-llm.containerfile#L15), we're using a 24.06 container as base image. For now, we need to manually downgrade ompi version in this container to the same version in 24.05. To do this, we can copy ompi source files from 24.05 to 24.06 using commands similar to below:
+
+    ```bash
+    docker cp <24.05_container_name> /opt/hpcx/ompi/. ompi/
+    docker cp ompi/. <24.06_container_name> /opt/hpcx/ompi/
+    docker commit <24.06_container_name>
+    docker tag <committed_24.06_image_id> <24.06_custom_image>
+    ```
+
+    > [!Important]
+    > Be sure to substitute the correct values for `<24.05_container_name>`, `<24.06_container_name>`, `<committed_24.06_image_id>`, and `<24.06_custom_image>` in the example above.
+
+    Make sure you modify the base image name in [triton_trt-llm.containerfile](containers/triton_trt-llm.containerfile#L15) to <24.06_custom_image> from above.
+
+3.  Run the following command to create a custom Triton Inference Server w/ all necessary tools to generate TensorRT-LLM
+    plan and engine files. In this example we'll use the tag `24.06` to match the date portion of `24.06-trtllm-python-py3`
     from the base image.
 
     ```bash
     docker build \
       --file ./triton_trt-llm.containerfile \
       --rm \
-      --tag triton_trt-llm:24.04 \
+      --tag triton_trt-llm:24.06 \
       .
     ```
 
@@ -311,7 +325,7 @@ required for subsequent pod starts on the same node.
     interface, and primarily contain the addition of the ability to specify tensor parallelism when optimizing models for
     TensorRT-LLM and enable support for additional models.
 
-3.  Upload the Container Image to a Cluster Visible Repository.
+4.  Upload the Container Image to a Cluster Visible Repository.
 
     In order for your Kubernetes cluster to be able to download out new container image, it will need to be pushed to a
     container image repository that nodes in your cluster can reach.
@@ -322,14 +336,14 @@ required for subsequent pod starts on the same node.
 
         ```bash
         docker tag \
-          triton_trt-llm:24.04 \
-          nvcr.io/example/triton_trt-llm:24.04
+          triton_trt-llm:24.06 \
+          nvcr.io/example/triton_trt-llm:24.06
         ```
 
     2. Next, upload the container image to your repository.
 
         ```bash
-        docker push nvcr.io/example/triton_trt-llm:24.04
+        docker push nvcr.io/example/triton_trt-llm:24.06
         ```
 
 #### Kubernetes Pull Secrets
@@ -504,12 +518,12 @@ Deploying Triton Server with a model that fits on Multi-Node is similar using th
 
 2.  Create a custom values file with required values:
 
-    * Container image name.
+    * Container image name. (built from [custom-container-image](#custom-container-image))
     * Model name.
     * Supported / available GPU.
     * Image pull secrets (if necessary).
     * Hugging Face secret name (if necessary).
-    * SkipConversion (if necessary).
+    * SkipConversion.
     * Parallelism.
     * Triton Log Verbose (if necessary).
 
@@ -561,7 +575,7 @@ Deploying Triton Server with a model that fits on Multi-Node is similar using th
     > [!Important]
     > Be sure to substitute the correct values for `<installation_name>` and `<custom_values>` in the example above.
 
-    For now, you also need to manually modify the path for Triton model repository in chart/templates/deployment.yaml at line 73 below:
+    For now, you also need to manually modify the path for Triton model repository in [deployment.yaml](chart/templates/deployment.yaml#L73) like below:
     ```bash
     {{- $model_path := printf "<path_to_triton_model_repo>" }}
     ```
@@ -921,7 +935,7 @@ I decided to use a custom image for a few reasons.
 
 Software versions featured in this document:
 
-* Triton Inference Server v2.45.0 (24.04-trtllm-python-py3)
+* Triton Inference Server v2.45.0 (24.06-trtllm-python-py3)
 * TensorRT-LLM v0.9.0
 * Triton CLI v0.0.7
 * NVIDIA Device Plugin for Kubernetes v0.15.0
