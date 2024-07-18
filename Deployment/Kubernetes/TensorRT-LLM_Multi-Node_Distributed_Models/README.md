@@ -513,6 +513,240 @@ Deploying Triton Server with a model that fits on a single GPU is straightforwar
     helm uninstall <installation_name>
     ```
 
+### Deploying Multi-GPU Multi-Node Models
+
+Deploying Triton Server with a model that fits on Multi-Node is similar using the steps below.
+
+1.  Build TRT-LLM engines
+    
+    The previous guide shows how to use Triton CLI to build engines and prepare a Triton model repository. In this guide, we'll show an example without using the Triton CLI.
+    
+    Run a Triton container from NGC:
+    ```bash
+    docker run --rm -it --net host --shm-size=2g --ulimit memlock=-1 --ulimit stack=67108864 --gpus all -v $(pwd):/workspace -w /workspace nvcr.io/nvidia/tritonserver:24.06-trtllm-python-py3 bash
+    ```
+
+    Build a Llama3-8b engine:
+    ```bash
+    cd tensorrt_llm/examples/llama
+    git clone https://huggingface.co/meta-llama/Meta-Llama-3-8B
+
+    python convert_checkpoint.py --model_dir ./Meta-Llama-3-8B \
+                                 --output_dir ./converted_checkpoint \
+                                 --dtype float16 \
+                                 --tp_size 2 \
+                                 --pp_size 4
+    
+    trtllm-build --checkpoint_dir ./converted_checkpoint \
+                 --output_dir ./output_engines \
+                 --remove_input_padding enable \
+                 --gpt_attention_plugin float16 \
+                 --context_fmha enable \
+                 --gemm_plugin float16 \
+                 --paged_kv_cache enable \
+                 --use_custom_all_reduce disable \
+                 --max_input_len 2048 \
+                 --max_output_len 2048 \
+                 --max_batch_size 4 \
+                 --use_paged_context_fmha enable
+    ```
+    
+    Prepare a Triton model repository:
+    ```bash
+    cd /workspace
+    mkdir triton_model_repo
+
+    cp -r all_models/inflight_batcher_llm/ensemble triton_model_repo/
+    cp -r all_models/inflight_batcher_llm/preprocessing triton_model_repo/
+    cp -r all_models/inflight_batcher_llm/postprocessing triton_model_repo/
+    cp -r all_models/inflight_batcher_llm/tensorrt_llm triton_model_repo/
+
+    python3 tools/fill_template.py -i triton_model_repo/preprocessing/config.pbtxt tokenizer_dir:<path_to_tokenizer>,tokenizer_type:llama,triton_max_batch_size:4,preprocessing_instance_count:1
+    python3 tools/fill_template.py -i triton_model_repo/tensorrt_llm/config.pbtxt triton_max_batch_size:4,decoupled_mode:False,max_beam_width:1,engine_dir:<path_to_engines>,max_tokens_in_paged_kv_cache:2560,max_attention_window_size:2560,kv_cache_free_gpu_mem_fraction:0.5,exclude_input_in_output:True,enable_kv_cache_reuse:False,batching_strategy:inflight_batching,max_queue_delay_microseconds:600
+    python3 tools/fill_template.py -i triton_model_repo/postprocessing/config.pbtxt tokenizer_dir:<path_to_tokenizer>,tokenizer_type:llama,triton_max_batch_size:4,postprocessing_instance_count:1
+    python3 tools/fill_template.py -i triton_model_repo/ensemble/config.pbtxt triton_max_batch_size:4
+    ```
+
+    > [!Important]
+    > Be sure to substitute the correct values for `<path_to_tokenizer>` and `<path_to_engines>` in the example above. Keep in mind that we need to copy the tokenizer, the TRT-LLM engines, and the Triton model repository to a shared file storage between your nodes. They're required to launch your model in Triton. For example, if using AWS EFS, the values for `<path_to_tokenizer>` and `<path_to_engines>` should be respect to the actutal EFS mount path. This is determined by your persistent-volume claim and mount path in chart/templates/deployment.yaml. Make sure that your nodes are able to access these three items.
+
+2.  Create a custom values file with required values:
+
+    * Container image name.
+    * Model name.
+    * Supported / available GPU.
+    * Image pull secrets (if necessary).
+    * Hugging Face secret name (if necessary).
+    * SkipConversion (if necessary).
+    * Parallelism.
+    * Triton Log Verbose (if necessary).
+
+    The provided sample Helm [chart](./chart/) include several example values files such as
+    [llama-3-8b_values.yaml](chart/llama-3-8b-instruct_values.yaml).
+
+3.  Deploy LLM on Triton + TRT-LLM.
+
+    Apply the custom values file to override the exported base values file using the command below, and create the Triton
+    Server Kubernetes deployment.
+
+    > [!Tip]
+    > The order that the values files are specified on the command line is important with values are applied and
+    > override existing values in the order they are specified.
+
+    ```bash
+    helm install <installation_name> \
+      --values ./chart/values.yaml \
+      --values ./chart/<custom_values>.yaml \
+      ./chart/.
+    ```
+
+    > [!Important]
+    > Be sure to substitute the correct values for `<installation_name>` and `<custom_values>` in the example above.
+
+    For now, you also need to manually modify the path for Triton model repository in chart/templates/deployment.yaml at line 73 below:
+    ```bash
+    {{- $model_path := printf "<path_to_triton_model_repo>" }}
+    ```
+
+    > [!Important]
+    > Be sure to substitute the correct values for `<path_to_triton_model_repo>` in the example above.
+
+4.  Verify the Chart Installation.
+
+    Use the following commands to inspect the installed chart and to determine if everything is working as intended.
+
+    ```bash
+    kubectl get deployments,pods,services,jobs --selector='app=<installation_name>'
+    ```
+
+    > [!Important]
+    > Be sure to substitute the correct value for `<installation_name>` in the example above.
+
+    You should output similar to below (assuming the installation name of "llama-3"):
+
+    ```text
+    NAME                                 READY   UP-TO-DATE   AVAILABLE   AGE
+    deployment.apps/triton-app-leader    1/1     1            1           10m
+    deployment.apps/triton-app-worker1   1/1     1            1           10m
+    deployment.apps/triton-app-worker2   1/1     1            1           10m
+    deployment.apps/triton-app-worker3   1/1     1            1           10m
+    deployment.apps/triton-app-worker4   1/1     1            1           10m
+    deployment.apps/triton-app-worker5   1/1     1            1           10m
+    deployment.apps/triton-app-worker6   1/1     1            1           10m
+    deployment.apps/triton-app-worker7   1/1     1            1           10m
+
+    NAME                                      READY   STATUS    RESTARTS   AGE
+    pod/triton-app-leader-56ddfdf846-h6npc    1/1     Running   0          10m
+    pod/triton-app-worker1-7b877c676c-ncncl   1/1     Running   0          10m
+    pod/triton-app-worker2-5d8df6bf99-8ct4z   1/1     Running   0          10m
+    pod/triton-app-worker3-6988d57999-lgl7z   1/1     Running   0          10m
+    pod/triton-app-worker4-6f4477855f-6287t   1/1     Running   0          10m
+    pod/triton-app-worker5-65b7bf5f5-7qd6x    1/1     Running   0          10m
+    pod/triton-app-worker6-6f447cd45f-9gsrd   1/1     Running   0          10m
+    pod/triton-app-worker7-6f5787c69f-nrf85   1/1     Running   0          10m
+
+    NAME                 TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)                      AGE
+    service/triton-app   ClusterIP   10.100.166.112   <none>        8000/TCP,8001/TCP,8002/TCP   10m
+    ```
+
+    Use the following commands to check Triton logs
+    
+    ```bash
+    kubectl logs --follow <leader_pod_name>
+    ```
+
+    > [!Important]
+    > Be sure to substitute the correct value for `<leader_pod_name>` in the example above.
+
+    You should output similar to below (assuming the leader pod name of "triton-app-leader-56ddfdf846-h6npc"):
+
+    ```text
+    I0717 23:01:28.501008 300 server.cc:674] 
+    +----------------+---------+--------+
+    | Model          | Version | Status |
+    +----------------+---------+--------+
+    | ensemble       | 1       | READY  |
+    | postprocessing | 1       | READY  |
+    | preprocessing  | 1       | READY  |
+    | tensorrt_llm   | 1       | READY  |
+    +----------------+---------+--------+
+
+    I0717 23:01:28.501073 300 tritonserver.cc:2579] 
+    +----------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+    | Option                           | Value                                                                                                                                                                                                           |
+    +----------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+    | server_id                        | rank0                                                                                                                                                                                                           |
+    | server_version                   | 2.47.0                                                                                                                                                                                                          |
+    | server_extensions                | classification sequence model_repository model_repository(unload_dependents) schedule_policy model_configuration system_shared_memory cuda_shared_memory binary_tensor_data parameters statistics trace logging |
+    | model_repository_path[0]         | /var/run/models/llama3_8b_tp2_pp4/triton_model_repo                                                                                                                                                             |
+    | model_control_mode               | MODE_NONE                                                                                                                                                                                                       |
+    | strict_model_config              | 1                                                                                                                                                                                                               |
+    | model_config_name                |                                                                                                                                                                                                                 |
+    | rate_limit                       | OFF                                                                                                                                                                                                             |
+    | pinned_memory_pool_byte_size     | 268435456                                                                                                                                                                                                       |
+    | cuda_memory_pool_byte_size{0}    | 67108864                                                                                                                                                                                                        |
+    | min_supported_compute_capability | 6.0                                                                                                                                                                                                             |
+    | strict_readiness                 | 1                                                                                                                                                                                                               |
+    | exit_timeout                     | 30                                                                                                                                                                                                              |
+    | cache_enabled                    | 0                                                                                                                                                                                                               |
+    +----------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+
+    I0717 23:01:28.502835 300 grpc_server.cc:2463] "Started GRPCInferenceService at 0.0.0.0:8001"
+    I0717 23:01:28.503047 300 http_server.cc:4692] "Started HTTPService at 0.0.0.0:8000"
+    I0717 23:01:28.544321 300 http_server.cc:362] "Started Metrics Service at 0.0.0.0:8002"
+    ```
+
+5.  Send a Curl POST request for inference
+
+    Use the following commands to expose external IP Address
+
+    ```bash
+    kubectl expose deployment <installation_name>-leader --type=LoadBalancer --name=my-service
+    ```
+
+    Use the following commands to check external IP Address
+
+    ```bash
+    kubectl get services
+    ```
+
+    You should output similar to below:
+    ```text
+    NAME         TYPE           CLUSTER-IP       EXTERNAL-IP                                                              PORT(S)                                        AGE
+    kubernetes   ClusterIP      10.100.0.1       <none>                                                                   443/TCP                                        23d
+    my-service   LoadBalancer   10.100.114.173   a3e1c0c3569f643e98dd13ff068a88b0-987671640.us-east-1.elb.amazonaws.com   8000:32677/TCP,8001:32203/TCP,8002:30986/TCP   3m32s
+    triton-app   ClusterIP      10.100.166.112   <none>                                                                   8000/TCP,8001/TCP,8002/TCP
+    ```
+
+    In this example, our external IP address is :
+    ```text
+    a3e1c0c3569f643e98dd13ff068a88b0-987671640.us-east-1.elb.amazonaws.com
+    ```
+
+    You should be able to send a Curl POST request with the following commands:
+    ```bash
+    curl -X POST a3e1c0c3569f643e98dd13ff068a88b0-987671640.us-east-1.elb.amazonaws.com:8000/v2/models/ensemble/generate -d '{"text_input": "What is machine learning?", "max_tokens": 64, "bad_words": "", "stop_words": "", "pad_id": 2, "end_id": 2}'
+    ```
+
+    You should output similar to below:
+    ```json
+    {"context_logits":0.0,"cum_log_probs":0.0,"generation_logits":0.0,"model_name":"ensemble","model_version":"1","output_log_probs":[0.0,0.0,0.0,0.0,0.0],"sequence_end":false,"sequence_id":0,"sequence_start":false,"text_output":" Machine learning is a branch of artificial intelligence that deals with the development of algorithms that allow computers to learn from data and make predictions or decisions without being explicitly programmed. Machine learning algorithms are used in a wide range of applications, including image recognition, natural language processing, and predictive analytics.\nWhat is the difference between machine learning and"}
+    ```
+
+6.  Uninstalling the Chart and the LoadBalancer
+
+    Uninstalling a Helm chart is as straightforward as running the command below.
+    This is useful when experimenting with various options and configurations.
+
+    ```bash
+    helm uninstall <installation_name>
+    ```
+
+    Delete the LoadBalancer that exposes external IP Address:
+    ```bash
+    kubectl delete services my-service
+    ```
+
 ### How It Works
 
 The Helm chart creates a model-conversion job and multiple Kubernetes deployments to support the distributed model's tensor parallelism needs.
