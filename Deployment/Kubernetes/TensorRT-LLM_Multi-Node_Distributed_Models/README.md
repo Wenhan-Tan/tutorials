@@ -300,7 +300,7 @@ required for subsequent pod starts on the same node.
     > [!Important]
     > Be sure to substitute the correct values for `<24.05_container_name>`, `<24.06_container_name>`, `<committed_24.06_image_id>`, and `<24.06_custom_image>` in the example above.
 
-    Make sure you modify the base image name in [triton_trt-llm.containerfile](containers/triton_trt-llm.containerfile#L15) to <24.06_custom_image> from above.
+    Make sure you modify the base image name in [triton_trt-llm.containerfile](containers/triton_trt-llm.containerfile#L15) to `<24.06_custom_image>` from above.
 
 3.  Run the following command to create a custom Triton Inference Server w/ all necessary tools to generate TensorRT-LLM
     plan and engine files. In this example we'll use the tag `24.06` to match the date portion of `24.06-trtllm-python-py3`
