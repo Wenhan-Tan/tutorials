@@ -445,74 +445,6 @@ To disable the creation of a conversion job by the Helm chart, set the values fi
 > If this occurs, it is best to delete the Helm installation and retry until the job pod is successfully scheduled.
 > Once the job pod completes, it will release its resources and make them available for the other pods to start.
 
-### Deploying Single GPU Models
-
-Deploying Triton Server with a model that fits on a single GPU is straightforward using the steps below.
-
-1.  Create a custom values file with required values:
-
-    * Container image name.
-    * Model name.
-    * Supported / available GPU.
-    * Image pull secrets (if necessary).
-    * Hugging Face secret name.
-
-    The provided sample Helm [chart](./chart/) include several example values files such as
-    [llama-3-8b_values.yaml](chart/llama-3-8b-instruct_values.yaml).
-
-2.  Deploy LLM on Triton + TRT-LLM.
-
-    Apply the custom values file to override the exported base values file using the command below, and create the Triton
-    Server Kubernetes deployment.
-
-    > [!Tip]
-    > The order that the values files are specified on the command line is important with values are applied and
-    > override existing values in the order they are specified.
-
-    ```bash
-    helm install <installation_name> \
-      --values ./chart/values.yaml \
-      --values ./chart/<custom_values>.yaml \
-      --set 'triton.image.name=<custom_image_name>' \
-      ./chart/.
-    ```
-
-    > [!Important]
-    > Be sure to substitute the correct values for `<installation_name>` and `<custom_values>` in the example above.
-
-3.  Verify the Chart Installation.
-
-    Use the following commands to inspect the installed chart and to determine if everything is working as intended.
-
-    ```bash
-    kubectl get deployments,pods,services,jobs --selector='app=<installation_name>'
-    ```
-
-    > [!Important]
-    > Be sure to substitute the correct value for `<installation_name>` in the example above.
-
-    You should output similar to below (assuming the installation name of "llama-3"):
-
-    ```text
-    NAME                      READY   UP-TO-DATE   AVAILABLE
-    deployment.apps/llama-3   0/1     1            0
-
-    NAME                          READY   STATUS    RESTARTS
-    pod/llama-3-7989ffd8d-ck62t   0/1     Pending   0
-
-    NAME              TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)
-    service/llama-3   ClusterIP   10.100.23.237   <none>        8000/TCP,8001/TCP,8002/TCP
-    ```
-
-4.  Uninstalling the Chart
-
-    Uninstalling a Helm chart is as straightforward as running the command below.
-    This is useful when experimenting with various options and configurations.
-
-    ```bash
-    helm uninstall <installation_name>
-    ```
-
 ### Deploying Multi-GPU Multi-Node Models
 
 Deploying Triton Server with a model that fits on Multi-Node is similar using the steps below.
@@ -526,7 +458,7 @@ Deploying Triton Server with a model that fits on Multi-Node is similar using th
     docker run --rm -it --net host --shm-size=2g --ulimit memlock=-1 --ulimit stack=67108864 --gpus all -v $(pwd):/workspace -w /workspace nvcr.io/nvidia/tritonserver:24.06-trtllm-python-py3 bash
     ```
 
-    Build a Llama3-8b engine:
+    Build a Llama3-8b engine with Tensor Parallelism=4, Pipeline Parallelism=2:
     ```bash
     cd tensorrt_llm/examples/llama
     git clone https://huggingface.co/meta-llama/Meta-Llama-3-8B
@@ -534,8 +466,8 @@ Deploying Triton Server with a model that fits on Multi-Node is similar using th
     python convert_checkpoint.py --model_dir ./Meta-Llama-3-8B \
                                  --output_dir ./converted_checkpoint \
                                  --dtype float16 \
-                                 --tp_size 2 \
-                                 --pp_size 4
+                                 --tp_size 4 \
+                                 --pp_size 2
     
     trtllm-build --checkpoint_dir ./converted_checkpoint \
                  --output_dir ./output_engines \
@@ -584,6 +516,32 @@ Deploying Triton Server with a model that fits on Multi-Node is similar using th
     The provided sample Helm [chart](./chart/) include several example values files such as
     [llama-3-8b_values.yaml](chart/llama-3-8b-instruct_values.yaml).
 
+    Below is an example:
+    ```yaml
+    gpu: NVIDIA-A10G
+
+    model:
+      name: llama-3-8b
+      persistentVolumeClaim: efs-claim
+      pullSecret: hf-model-pull # not required in this example
+      skipConversion: True
+      tensorrtLlm:
+        conversion: # not required in this example
+          gpu: 4
+          memory: 64Gi
+        parallelism:
+          tensor: 4
+          pipeline: 2
+
+    logging:
+      tritonServer:
+        verbose: True
+
+    triton:
+      image:
+        name: wenhant16/triton_trtllm_multinode:24.06.13 # custom image built from previous steps
+    ```
+
 3.  Deploy LLM on Triton + TRT-LLM.
 
     Apply the custom values file to override the exported base values file using the command below, and create the Triton
@@ -594,7 +552,7 @@ Deploying Triton Server with a model that fits on Multi-Node is similar using th
     > override existing values in the order they are specified.
 
     ```bash
-    helm install <installation_name> \
+    helm install <installation_name> \ # using triton-app for <installation_name> in this example
       --values ./chart/values.yaml \
       --values ./chart/<custom_values>.yaml \
       ./chart/.
