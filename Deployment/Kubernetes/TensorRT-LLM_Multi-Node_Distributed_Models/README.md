@@ -230,32 +230,7 @@ capabilities.
     kubectl apply -f ./nvidia_gpu-feature-discovery_daemonset.yaml
     ```
 
-
-### Hugging Face Authorization
-
-In order to download models from Hugging Face, your pods will require an access token with the appropriate permission to
-download models from their servers.
-
-1.  If you do not already have a Hugging Face access token, you will need to created one.
-    To create a Hugging Face access token,
-    [follow their guide](https://huggingface.co/docs/hub/en/security-tokens).
-
-2.  Once you have a token, use the command below to persist the token as a secret named `hf-model-pull` in your cluster.
-
-    ```bash
-    kubectl create secret generic hf-model-pull '--from-literal=password=<access_token>'
-    ```
-
-3.  To verify that your secret has been created, use the following command and inspect the output for your secret.
-
-    ```bash
-    kubectl get secrets
-    ```
-
-
-
 ## Triton Preparation
-
 
 ### Model Preparation Script
 
@@ -346,80 +321,6 @@ required for subsequent pod starts on the same node.
         docker push nvcr.io/example/triton_trt-llm:24.06
         ```
 
-#### Kubernetes Pull Secrets
-
-If your container image repository requires credentials to download images from, then you will need to create a Kubernetes
-docker-registry secret.
-We'll be using the `nvcr.io` container image repository example above for demonstration purposes.
-Be sure to properly escape any special characters such as `$` in the password or username values.
-
-1.  Use the command below to create the necessary secret.  Secrets for your repository should be similar, but not be identical
-to the example below.
-
-    ```bash
-    kubectl create secret docker-registry ngc-container-pull \
-      --docker-password='dGhpcyBpcyBub3QgYSByZWFsIHNlY3JldC4gaXQgaXMgb25seSBmb3IgZGVtb25zdHJhdGlvbiBwdXJwb3Nlcy4=' \
-      --docker-server='nvcr.io' \
-      --docker-username='\$oauthtoken'
-    ```
-
-2.  The above command will create a secret in your cluster named `ngc-container-pull`.
-    You can verify that the secret was created correctly using the following command and inspecting its output for the secret
-    you're looking for.
-
-    ```bash
-    kubectl get secrets
-    ```
-
-3.  Ensure the contents of the secret are correct, you can run the following command.
-
-    ```bash
-    kubectl get secret/ngc-container-pull -o yaml
-    ```
-
-    You should see an output similar to the following.
-
-    ```yaml
-    apiVersion: v1
-    data:
-      .dockerconfigjson: eyJhdXRocyI6eyJudmNyLmlvIjp7InVzZXJuYW1lIjoiJG9hdXRodG9rZW4iLCJwYXNzd29yZCI6IlZHaHBjeUJwY3lCdWIzUWdZU0J5WldGc0lITmxZM0psZEN3Z2FYUWdhWE1nYjI1c2VTQm1iM0lnWkdWdGIyNXpkSEpoZEdsdmJpQndkWEp3YjNObGN5ND0iLCJhdXRoIjoiSkc5aGRYUm9kRzlyWlc0NlZrZG9jR041UW5CamVVSjFZak5SWjFsVFFubGFWMFp6U1VoT2JGa3pTbXhrUTNkbllWaFJaMkZZVFdkaU1qVnpaVk5DYldJelNXZGFSMVowWWpJMWVtUklTbWhrUjJ4MlltbENkMlJZU25kaU0wNXNZM2swWjFWSGVHeFpXRTVzU1VjMWJHUnRWbmxKU0ZaNldsTkNRMWxZVG14T2FsRm5aRWM0WjJGSGJHdGFVMEo1V2xkR2MwbElUbXhaTTBwc1pFaE5hQT09In19fQ==
-    kind: Secret
-    metadata:
-      name: ngc-container-pull
-      namespace: default
-    type: kubernetes.io/dockerconfigjson
-    ```
-
-    The value of `.dockerconfigjson` is a base-64 encoded string which can be decoded into the following.
-
-    ```json
-    {
-      "auths": {
-        "nvcr.io": {
-          "username":"$oauthtoken",
-          "password":"VGhpcyBpcyBub3QgYSByZWFsIHNlY3JldCwgaXQgaXMgb25seSBmb3IgZGVtb25zdHJhdGlvbiBwdXJwb3Nlcy4gUGxlYXNlIG5ldmVyIHVzZSBCYXNlNjQgdG8gaGlkZSByZWFsIHNlY3JldHMh",
-          "auth":"JG9hdXRodG9rZW46VkdocGN5QnBjeUJ1YjNRZ1lTQnlaV0ZzSUhObFkzSmxkQ3dnYVhRZ2FYTWdiMjVzZVNCbWIzSWdaR1Z0YjI1emRISmhkR2x2YmlCd2RYSndiM05sY3k0Z1VHeGxZWE5sSUc1bGRtVnlJSFZ6WlNCQ1lYTmxOalFnZEc4Z2FHbGtaU0J5WldGc0lITmxZM0psZEhNaA=="
-        }
-      }
-    }
-    ```
-
-    You can use this compact command line to get the above output with a single command.
-
-    ```bash
-    kubectl get secret/ngc-container-pull -o json | jq -r '.data[".dockerconfigjson"]' | base64 -d | jq
-    ```
-
-    > [!Note]
-    > The values of `password` and `auth` are also base-64 encoded string.
-    > We recommend inspecting the values of the following values:
-    >
-    > * Value of `.auths['nvcr.io'].username`.
-    > * Base64 decoded value of `.auths['nvcr.io'].password`.
-    > * Base64 decoded value of `.auths['nvcr.io'].auths`.
-
-
-
 ## Triton Deployment
 
 > [!Note]
@@ -461,7 +362,7 @@ To disable the creation of a conversion job by the Helm chart, set the values fi
 
 ### Deploying Multi-GPU Multi-Node Models
 
-Deploying Triton Server with a model that fits on Multi-Node is similar using the steps below.
+Deploying Triton Server with a model that fits on Multi-Node is similar using the steps below. In this example, we're going to deploy a Llama3-8b model across 2 nodes of g5.12xlarge instances with 4 A10G GPUs each within EKS.
 
 1.  Build TRT-LLM engines
     
@@ -485,12 +386,8 @@ Deploying Triton Server with a model that fits on Multi-Node is similar using th
     
     trtllm-build --checkpoint_dir ./converted_checkpoint \
                  --output_dir ./output_engines \
-                 --remove_input_padding enable \
-                 --gpt_attention_plugin float16 \
-                 --context_fmha enable \
                  --gemm_plugin float16 \
-                 --paged_kv_cache enable \
-                 --use_custom_all_reduce disable \
+                 --use_custom_all_reduce disable \ # only disable on non-NVLink machines
                  --max_input_len 2048 \
                  --max_output_len 2048 \
                  --max_batch_size 4 \
@@ -594,7 +491,7 @@ Deploying Triton Server with a model that fits on Multi-Node is similar using th
     > [!Important]
     > Be sure to substitute the correct value for `<installation_name>` in the example above.
 
-    You should output similar to below (assuming the installation name of "llama-3"):
+    You should output similar to below (assuming the installation name of "triton-app"):
 
     ```text
     NAME                                 READY   UP-TO-DATE   AVAILABLE   AGE
@@ -725,15 +622,6 @@ The Helm chart creates a model-conversion job and multiple Kubernetes deployment
 When a distributed model is deployed, a "leader" pod along with a number of "workers" to meet the model's tensor parallelism requirements are
 created.
 The leader pod then awaits for the conversion job to complete and for all worker pods to be successfully deployed.
-
-The model-conversion job is responsible for downloading the configured model from Hugging Face and converting that model into a TensorRT-LLM
-ready set of engine and plan files.
-The model-conversion job will place all downloaded and converted files on the provided persistent volume.
-
-> [!Note]
-> Model downloads from Hugging Face are reused when possible.
-> Converted TRT-LLM models are GPU and tensor-parallelism specific.
-> Therefore a converted model will exist for every GPU the model is deployed on to as well as for every configuration of tensor parallelism.
 
 Once these conditions are met, the leader pod creates an [`mpirun`](https://docs.open-mpi.org/en/v5.0.x/man-openmpi/man1/mpirun.1.html) process which creates a Triton Server process in each pod of the distributed model.
 
