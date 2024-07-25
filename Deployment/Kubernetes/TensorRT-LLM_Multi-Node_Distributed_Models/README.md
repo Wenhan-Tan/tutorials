@@ -273,19 +273,19 @@ required for subsequent pod starts on the same node.
     ```
 
     > [!Important]
-    > Be sure to substitute the correct values for `<24.05_container_name>`, `<24.06_container_name>`, `<committed_24.06_image_id>`, and `<24.06_custom_image>` in the example above.
+    > Be sure to substitute the correct values for `<24.06_container_name>`, `<24.06_container_name>`, `<committed_24.06_image_id>`, and `<24.06_custom_image>` in the example above.
 
     Make sure you modify the base image name in [triton_trt-llm.containerfile](containers/triton_trt-llm.containerfile#L15) to `<24.06_custom_image>` from above.
 
 3.  Run the following command to create a custom Triton Inference Server w/ all necessary tools to generate TensorRT-LLM
-    plan and engine files. In this example we'll use the tag `24.06` to match the date portion of `24.06-trtllm-python-py3`
+    plan and engine files. In this example we'll use the tag `24.07` to match the date portion of `24.07-trtllm-python-py3`
     from the base image.
 
     ```bash
     docker build \
       --file ./triton_trt-llm.containerfile \
       --rm \
-      --tag triton_trt-llm:24.06 \
+      --tag triton_trt-llm:24.07 \
       .
     ```
 
@@ -311,14 +311,14 @@ required for subsequent pod starts on the same node.
 
         ```bash
         docker tag \
-          triton_trt-llm:24.06 \
-          nvcr.io/example/triton_trt-llm:24.06
+          triton_trt-llm:24.07 \
+          nvcr.io/example/triton_trt-llm:24.07
         ```
 
     2. Next, upload the container image to your repository.
 
         ```bash
-        docker push nvcr.io/example/triton_trt-llm:24.06
+        docker push nvcr.io/example/triton_trt-llm:24.07
         ```
 
 ## Triton Deployment
@@ -370,7 +370,7 @@ Deploying Triton Server with a model that fits on Multi-Node is similar using th
     
     Run a Triton container from NGC:
     ```bash
-    docker run --rm -it --net host --shm-size=2g --ulimit memlock=-1 --ulimit stack=67108864 --gpus all -v $(pwd):/workspace -w /workspace nvcr.io/nvidia/tritonserver:24.06-trtllm-python-py3 bash
+    docker run --rm -it --net host --shm-size=2g --ulimit memlock=-1 --ulimit stack=67108864 --gpus all -v $(pwd):/workspace -w /workspace nvcr.io/nvidia/tritonserver:24.07-trtllm-python-py3 bash
     ```
 
     Build a Llama3-8b engine with Tensor Parallelism=4, Pipeline Parallelism=2:
@@ -450,7 +450,7 @@ Deploying Triton Server with a model that fits on Multi-Node is similar using th
 
     triton:
       image:
-        name: wenhant16/triton_trtllm_multinode:24.06.13 # custom image built from previous steps
+        name: wenhant16/triton_trtllm_multinode:24.07 # custom image built from previous steps
     ```
 
 3.  Deploy LLM on Triton + TRT-LLM.
@@ -823,8 +823,8 @@ I decided to use a custom image for a few reasons.
 
 Software versions featured in this document:
 
-* Triton Inference Server v2.45.0 (24.06-trtllm-python-py3)
-* TensorRT-LLM v0.9.0
+* Triton Inference Server v2.45.0 (24.07-trtllm-python-py3)
+* TensorRT-LLM v0.11.0
 * Triton CLI v0.0.7
 * NVIDIA Device Plugin for Kubernetes v0.15.0
 * NVIDIA GPU Discovery Service for Kubernetes v0.8.2
