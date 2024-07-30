@@ -45,8 +45,6 @@ model: # (required)
   # When not relying on the model conversion job, the following must exist on the persistent volume:
   # - models: "/var/run/models/{model_name}/{pipeline_parallelism}x{tensor_parallelism}/model"
   # - engine: "/var/run/models/{model_name}/{pipeline_parallelism}x{tensor_parallelism}/engine"
-  skipConversion: # (default: false)
-  # Configuration options related to the conversion of a non-optimized model into TensorRT format.
   tensorrtLlm: # (optional)
     # Configuration opens related to conversion of non-TensorRT models to TensorRT engine and plan files.
     # Ignored when `model.skipConversion` is `true`.

@@ -132,15 +132,14 @@ spec:
           - python3
           - ./server.py
           - leader
+          - --triton_model_repo_dir={{ $model_path }}
           - --deployment={{ $.Release.Name }}
           - --namespace={{ $.Release.Namespace }}
           - --dt={{ $model_dt }}
           - --pp={{ $model_pp }}
           - --tp={{ $model_tp }}
-          - --multinode
           - --gpu_per_node={{ $.Values.gpuPerNode }}
-  {{-     if $skip_conversion }}
-          - --noconvert
+          - --stateful_set_group_key=$(GROUP_KEY)
   {{-     end }}
   {{-     with $.Values.logging }}
   {{-       with .tritonServer }}
@@ -153,16 +152,10 @@ spec:
   {{-       end }}
   {{-     end }}
           env:
-          - name: ENGINE_DEST_PATH
-            value: {{ $engine_path }}
-          - name: MODEL_DEST_PATH
-            value: {{ $model_path }}
-          - name: NCCL_DEBUG
-            value: INFO
-          - name: POD_NAME
+          - name: GROUP_KEY
             valueFrom:
               fieldRef:
-                fieldPath: metadata.name
+                fieldPath: metadata.labels['leaderworkerset.sigs.k8s.io/group-key']
   {{-     with $.Values.logging }}
   {{-       with .tritonServer }}
   {{-         if .verbose }}
@@ -244,13 +237,6 @@ spec:
   {{-       end }}
   {{-     end }}
         volumes:
-  {{-     with $.Values.model }}
-  {{-       with .pullSecret }}
-        - name: hf-secret
-          secret:
-            secretName: {{ . }}
-  {{-       end }}
-  {{-     end }}
         - name: model-repository
           persistentVolumeClaim:
             claimName: {{ $.Values.model.persistentVolumeClaim }}
@@ -286,13 +272,8 @@ spec:
           - python3
           - ./server.py
           - worker
+          - --triton_model_repo_dir={{ $model_path }}
           env:
-          - name: ENGINE_DEST_PATH
-            value: {{ $engine_path }}
-          - name: MODEL_DEST_PATH
-            value: {{ $model_path }}
-          - name: NCCL_DEBUG
-            value: INFO
   {{-     with $.Values.logging }}
   {{-       with .tritonServer }}
   {{-         if .verbose }}
