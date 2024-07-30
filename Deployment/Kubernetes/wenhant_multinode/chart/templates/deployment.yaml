@@ -159,10 +159,10 @@ spec:
             value: {{ $model_path }}
           - name: NCCL_DEBUG
             value: INFO
-          - name: GROUP_INDEX
+          - name: POD_NAME
             valueFrom:
               fieldRef:
-                fieldPath: metadata.labels['leaderworkerset.sigs.k8s.io/group-index']
+                fieldPath: metadata.name
   {{-     with $.Values.logging }}
   {{-       with .tritonServer }}
   {{-         if .verbose }}
