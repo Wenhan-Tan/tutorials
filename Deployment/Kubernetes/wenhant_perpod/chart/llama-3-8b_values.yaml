@@ -37,5 +37,6 @@ triton:
     # name: wenhant16/triton_trtllm_multinode:24.06.10 # only downgrade ucx
     # name: wenhant16/triton_trtllm_multinode:24.06.11 # only downgrade ucc
     # name: wenhant16/triton_trtllm_multinode:24.06.12 # only downgrade ucx+ucc
-    name: wenhant16/triton_trtllm_multinode:24.06.13 # only downgrade ompi
+    # name: wenhant16/triton_trtllm_multinode:24.06.13 # only downgrade ompi
+    name: wenhant16/triton_trtllm_multinode:24.06.17 # only downgrade ompi + modify server.py
     # name: wenhant16/triton_trtllm:0.11.0

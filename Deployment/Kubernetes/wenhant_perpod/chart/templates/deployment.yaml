@@ -52,8 +52,8 @@
 {{- $model_lower := lower $model_name }}
 {{- $model_upper := upper $model_name }}
 {{- $pod_count := mul $model_pp $model_tp }}
-{{- $triton_cpu := 4 }}
-{{- $triton_memory := "32Gi" }}
+{{- $triton_cpu := 16 }}
+{{- $triton_memory := "128Gi" }}
 {{- with $.Values.triton }}
 {{-   with .image }}
 {{-     with .name }}
@@ -95,7 +95,7 @@
 {{-     $service_account = . }}
 {{-   end }}
 {{- end }}
-{{- range $i := until (int $pod_count) }}
+{{- range $i := until (int 2) }}
 {{-   if eq $i 0 }}
 apiVersion: apps/v1
 kind: Deployment
@@ -167,6 +167,8 @@ spec:
           value: {{ $engine_path }}
         - name: MODEL_DEST_PATH
           value: {{ $model_path }}
+        - name: NCCL_DEBUG
+          value: INFO
 {{-     with $.Values.logging }}
 {{-       with .tritonServer }}
 {{-         if .verbose }}
@@ -203,14 +205,14 @@ spec:
         resources:
           limits:
             cpu: {{ $triton_cpu }}
-            ephemeral-storage: 1Gi
+            ephemeral-storage: 4Gi
             memory: {{ $triton_memory }}
-            nvidia.com/gpu: 1
+            nvidia.com/gpu: 4
           requests:
             cpu: {{ $triton_cpu }}
-            ephemeral-storage: 1Gi
+            ephemeral-storage: 4Gi
             memory: {{ $triton_memory }}
-            nvidia.com/gpu: 1
+            nvidia.com/gpu: 4
         startupProbe:
           failureThreshold: 60
           httpGet:
@@ -223,6 +225,8 @@ spec:
         - mountPath: /var/run/models
           name: model-repository
           # readOnly: true
+        - mountPath: /dev/shm
+          name: dshm
 {{-     with $.Values.triton }}
 {{-       with .image }}
 {{-         with .pullSecrets }}
@@ -255,6 +259,10 @@ spec:
         persistentVolumeClaim:
           claimName: {{ $.Values.model.persistentVolumeClaim }}
           # readOnly: false
+      - name: dshm
+        emptyDir:
+          medium: Memory
+          sizeLimit: 32Gi
 {{-   else }}
 ---
 apiVersion: apps/v1
@@ -308,6 +316,8 @@ spec:
           value: {{ $engine_path }}
         - name: MODEL_DEST_PATH
           value: {{ $model_path }}
+        - name: NCCL_DEBUG
+          value: INFO
 {{-     with $.Values.logging }}
 {{-       with .tritonServer }}
 {{-         if .verbose }}
@@ -321,18 +331,20 @@ spec:
         resources:
           limits:
             cpu: {{ $triton_cpu }}
-            ephemeral-storage: 1Gi
+            ephemeral-storage: 4Gi
             memory: {{ $triton_memory }}
-            nvidia.com/gpu: 1
+            nvidia.com/gpu: 4
           requests:
             cpu: {{ $triton_cpu }}
-            ephemeral-storage: 1Gi
+            ephemeral-storage: 4Gi
             memory: {{ $triton_memory }}
-            nvidia.com/gpu: 1
+            nvidia.com/gpu: 4
         volumeMounts:
         - mountPath: /var/run/models
           name: model-repository
           # readOnly: true
+        - mountPath: /dev/shm
+          name: dshm
 {{-     with $.Values.triton }}
 {{-       with .image }}
 {{-         with .pullSecrets }}
@@ -358,5 +370,9 @@ spec:
         persistentVolumeClaim:
           claimName: {{ $.Values.model.persistentVolumeClaim }}
           # readOnly: true
+      - name: dshm
+        emptyDir:
+          medium: Memory
+          sizeLimit: 32Gi
 {{-   end }}
 {{- end }}

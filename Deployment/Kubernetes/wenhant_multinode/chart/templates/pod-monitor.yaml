@@ -12,26 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# See values.yaml for reference values.
-
-gpu: NVIDIA-A10G
-
-model:
-  name: llama-2-7b
-  persistentVolumeClaim: efs-claim
-  pullSecret: hf-model-pull
-  skipConversion: True
-  tensorrtLlm:
-    conversion:
-      gpu: 4
-      memory: 64Gi
-    parallelism:
-      tensor: 8
-
-logging:
-  tritonServer:
-    verbose: True
-
-triton:
-  image:
-    name: wenhant16/triton_trtllm_multinode:24.05
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: {{ $.Release.Name }}
+  labels:
+    app: {{ $.Release.Name }}
+    app.kubernetes.io/component: monitor
+    release: prometheus
+{{- with $.Values.kubernetes }}
+{{-   with .labels }}
+{{      toYaml . | indent 4 }}
+{{-   end }}
+{{- end }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ $.Release.Name }}
+      app.kubernetes.io/component: server
+  podMetricsEndpoints:
+  - port: metrics
+    path: /metrics

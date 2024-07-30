@@ -12,26 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# See values.yaml for reference values.
-
-gpu: NVIDIA-A10G
-
-model:
-  name: llama-2-7b
-  persistentVolumeClaim: efs-claim
-  pullSecret: hf-model-pull
-  skipConversion: True
-  tensorrtLlm:
-    conversion:
-      gpu: 4
-      memory: 64Gi
-    parallelism:
-      tensor: 8
-
-logging:
-  tritonServer:
-    verbose: True
-
-triton:
-  image:
-    name: wenhant16/triton_trtllm_multinode:24.05
+apiVersion: v2
+appVersion: 0.1.0
+description: Generative AI Multi-Node w/ Triton and TensorRT-LLM Guide/Tutorial
+icon: https://www.nvidia.com/content/dam/en-zz/Solutions/about-nvidia/logo-and-brand/01-nvidia-logo-vert-500x200-2c50-d@2x.png
+name: triton_trt-llm_multi-node_example
+version: 0.1.0
