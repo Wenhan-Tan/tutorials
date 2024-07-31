@@ -122,3 +122,20 @@ kubernetes: # (optional)
   # Tolerations applied to every pod deployed as part of this deployment.
   # Template already includes `nvidia.com/gpu=present:NoSchedule`.
   tolerations: # (optional)
+
+# Configuration options for automatic scaling of Triton Server deployments.
+autoscaling: # (optional)
+  # Determines if autoscaling is enabled for deployment or not.
+  enable: true # (default: true)
+  # Controls the number of Triton Server replicas are deployed.
+  replicas: # (optional)
+    # Upper bound of the number of Triton Server replicas deployed concurrently.
+    maximum: # (default: 4)
+    # Lower bound of the number of Triton Server replicas deployed concurrently.
+    minimum: # (default: 1)
+  # Metric used to determine autoscaling decisions.
+  metric: # (optional)
+    # Name of the metric monitored.
+    name: # (default: triton:queue_compute:ratio)
+    # Threshold or targeted value used to determine the number of replicas concurrently deployed.
+    value: # (default: 1)

@@ -101,7 +101,6 @@ kind: LeaderWorkerSet
 metadata:
   name: leaderworkerset-sample
 spec:
-  replicas: 2
   leaderWorkerTemplate:
     size: 2
     leaderTemplate:
@@ -133,14 +132,11 @@ spec:
           - ./server.py
           - leader
           - --triton_model_repo_dir={{ $model_path }}
-          - --deployment={{ $.Release.Name }}
           - --namespace={{ $.Release.Namespace }}
-          - --dt={{ $model_dt }}
           - --pp={{ $model_pp }}
           - --tp={{ $model_tp }}
           - --gpu_per_node={{ $.Values.gpuPerNode }}
           - --stateful_set_group_key=$(GROUP_KEY)
-  {{-     end }}
   {{-     with $.Values.logging }}
   {{-       with .tritonServer }}
   {{-         if .useIso8601 }}
@@ -224,7 +220,7 @@ spec:
   {{-         end }}
   {{-       end }}
   {{-     end }}
-        restartPolicy: Always
+        # restartPolicy: Always
         serviceAccountName: {{ $service_account }}
         terminationGracePeriodSeconds: 30
         tolerations:
@@ -311,7 +307,7 @@ spec:
   {{-         end }}
   {{-       end }}
   {{-     end }}
-        restartPolicy: Always
+        # restartPolicy: Always
         serviceAccountName: {{ $service_account }}
         terminationGracePeriodSeconds: 30
         tolerations:

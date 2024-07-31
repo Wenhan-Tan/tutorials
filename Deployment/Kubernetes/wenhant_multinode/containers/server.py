@@ -53,7 +53,7 @@ def parse_arguments():
     parser.add_argument("--pp", type=int, default=1, help="Pipeline parallelism.")
     parser.add_argument("--tp", type=int, default=1, help="Tensor parallelism.")
     parser.add_argument("--iso8601", action="count", default=0)
-    parser.add_argument("--verbose", action="count", default=0)
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
     parser.add_argument(
         "--namespace",
         type=str,
@@ -68,23 +68,6 @@ def parse_arguments():
     parser.add_argument("--stateful_set_group_key",type=str,default=None,help="Value of leaderworkerset.sigs.k8s.io/group-key, Leader uses this to gang schedule and its only needed in leader mode")
 
     return parser.parse_args()
-
-
-# ---
-
-
-def remove_path(path: str):
-    if os.path.exists(path):
-        if os.path.isfile(path):
-            if is_verbose:
-                write_output(f"> rm {path}")
-
-            os.remove(path)
-        else:
-            if is_verbose:
-                write_output(f"> rm -rf {path}")
-
-            shutil.rmtree(path)
 
 
 # ---
@@ -194,8 +177,6 @@ def do_leader(args):
 
     write_output(f"Executing Leader (world size: {world_size})")
 
-    wait_for_convert(args)
-
     workers = wait_for_workers(world_size / args.gpu_per_node)
 
     if len(workers) != (world_size / args.gpu_per_node):
@@ -209,7 +190,7 @@ def do_leader(args):
         "--allow-run-as-root",
     ]
 
-    if is_verbose > 0:
+    if is_verbose:
         cmd_args += ["--debug-devel"]
 
     cmd_args += [
@@ -247,8 +228,8 @@ def do_leader(args):
                 "--metrics-interval-ms=1000",
             ]
 
-            if is_verbose > 0:
-                cmd_args += ["--log-verbose=1"]
+            if is_verbose:
+                cmd_args += ["--log-verbose=2"]
 
             if args.iso8601 > 0:
                 cmd_args += ["--log-format=ISO8601"]
@@ -302,7 +283,7 @@ if args.triton_model_repo_dir is None:
     raise Exception(f"--triton_model_repo_dir is required")
 
 # Update the is_verbose flag with values passed in by options.
-is_verbose = is_verbose or args.verbose > 0
+is_verbose = args.verbose
 
 if is_verbose:
     write_output(f"Triton model repository is at:'{MODEL_DIRECTORY}'")
